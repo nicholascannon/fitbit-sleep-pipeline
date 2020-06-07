@@ -22,7 +22,7 @@ def verify_access_token():
         r = requests.get('https://api.fitbit.com/1/user/-/profile.json',
                          headers={'Authorization': f'Bearer {access_token}'})
 
-        if r.status_code == 400:  # Refresh access token
+        if r.status_code == 401:  # Refresh access token
             logging.info('Access token requires refresh, refreshing now')
             r = requests.post(
                 'https://api.fitbit.com/oauth2/token',
@@ -48,7 +48,7 @@ def verify_access_token():
             Variable.set('FITBIT_REFRESH', refresh_token)
         else:
             r.raise_for_status()
-            logging.info('Access token valid!')
+            logging.info('Access token valid!')  # 200 will reach here
     except Exception:
         # TODO: send email?
         logging.exception('Error checking or refreshing Fitbit tokens')

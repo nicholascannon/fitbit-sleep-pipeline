@@ -6,6 +6,12 @@ Written by Nicholas Cannon
 import requests
 import logging
 from airflow.models import Variable
+import os
+
+# set up staging dir
+STAGE_DIR = os.path.join(os.getcwd(), 'staging')
+if not os.path.exists(STAGE_DIR):
+    os.mkdir(STAGE_DIR)
 
 
 def verify_access_token():
@@ -13,11 +19,11 @@ def verify_access_token():
     Check if Fitbit api token is valid. If not refresh it using the refresh
     token and update its value in airflow.
     """
-    access_token = Variable.get('FITBIT_ACCESS')
-    refresh_token = Variable.get('FITBIT_REFRESH')
-    app_token = Variable.get('FITBIT_APP_TOKEN')
-
     try:
+        access_token = Variable.get('FITBIT_ACCESS')
+        refresh_token = Variable.get('FITBIT_REFRESH')
+        app_token = Variable.get('FITBIT_APP_TOKEN')
+
         logging.info('Verifying access token')
         r = requests.get('https://api.fitbit.com/1/user/-/profile.json',
                          headers={'Authorization': f'Bearer {access_token}'})
@@ -48,18 +54,23 @@ def verify_access_token():
             Variable.set('FITBIT_REFRESH', refresh_token)
         else:
             r.raise_for_status()
-            logging.info('Access token valid!')  # 200 will reach here
-    except Exception:
-        # TODO: send email?
-        logging.exception('Error checking or refreshing Fitbit tokens')
+            logging.info('Access token valid!')
+    except KeyError:
+        logging.exception('Fitbit credentials do not exist')
+    except requests.HTTPError:
+        logging.exception('Fitbit token validation error')
+    except ValueError:
+        logging.exception('Could not parse json body')
 
 
 def fetch_sleep(**kwargs):
     """
-    Fetch sleep data from Fitbit API for given date.
+    Fetch sleep data from Fitbit API for the given execution date and store in
+    the staging area.
     """
     ds = kwargs.get('ds')
     access_token = Variable.get('FITBIT_ACCESS')
+    staging_dir = os.path.join(STAGE_DIR, ds)
 
     try:
         logging.info(f'Fetching sleep data for {ds}')
@@ -67,8 +78,16 @@ def fetch_sleep(**kwargs):
             f'https://api.fitbit.com/1.2/user/-/sleep/date/{ds}.json',
             headers={'Authorization': f'Bearer {access_token}'})
         r.raise_for_status()
+        r.json()  # validates that we actually got json data
 
-        logging.info(r.json())
+        if not os.path.exists(staging_dir):
+            os.mkdir(staging_dir)
+
+        stage_file = os.path.join(staging_dir, f'sleep-{ds}.json')
+        with open(stage_file, 'w') as f:
+            f.write(r.text)
+
+        logging.info(f'Successfully staged data to {stage_file}')
     except ValueError:
         logging.exception(f'Error parsing JSON body for date {ds}')
     except requests.HTTPError:

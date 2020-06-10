@@ -1,1 +1,4 @@
 __pycache__/
+staging/
+
+.DS_Store

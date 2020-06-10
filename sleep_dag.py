@@ -1,5 +1,5 @@
 """
-Fitbit Sleep ETL DAG
+Fitbit Sleep ETL DAG.
 
 Written by Nicholas Cannon
 """
@@ -25,12 +25,12 @@ dag = DAG(
     schedule_interval='@daily',
 )
 
+""" EXTRACT """
 check_token = PythonOperator(
-    task_id='verify_access_token',
+    task_id='verify_tokens',
     python_callable=utils.verify_access_token,
     dag=dag,
 )
-
 get_sleep = PythonOperator(
     task_id='get_sleep_data',
     python_callable=utils.fetch_sleep,
@@ -38,4 +38,12 @@ get_sleep = PythonOperator(
     dag=dag,
 )
 
+
+""" TRANSFORM """
+
+
+""" LOAD """
+
+
+""" DEPS """
 check_token >> get_sleep

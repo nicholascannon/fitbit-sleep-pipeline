@@ -3,10 +3,13 @@ Fitbit Sleep ETL util functions for ETL process
 
 Written by Nicholas Cannon
 """
+import os
 import requests
 import logging
+import json
+from datetime import datetime as dt
 from airflow.models import Variable
-import os
+from airflow.hooks.postgres_hook import PostgresHook
 
 # set up staging dir
 STAGE_DIR = os.path.join(os.getcwd(), 'staging')
@@ -63,14 +66,27 @@ def verify_access_token():
         logging.exception('Could not parse json body')
 
 
+def get_or_make_stage_dir(ds):
+    """
+    Utility function to return stage dir path and create it if it doesn't exist.
+    """
+    staging_dir = os.path.join(STAGE_DIR, ds)
+
+    if not os.path.exists(staging_dir):
+        os.mkdir(staging_dir)
+
+    return staging_dir
+
+
 def fetch_sleep(**kwargs):
     """
     Fetch sleep data from Fitbit API for the given execution date and store in
     the staging area.
+
+    Sleep API docs: https://dev.fitbit.com/build/reference/web-api/sleep/
     """
     ds = kwargs.get('ds')
     access_token = Variable.get('FITBIT_ACCESS')
-    staging_dir = os.path.join(STAGE_DIR, ds)
 
     try:
         logging.info(f'Fetching sleep data for {ds}')
@@ -80,9 +96,7 @@ def fetch_sleep(**kwargs):
         r.raise_for_status()
         r.json()  # validates that we actually got json data
 
-        if not os.path.exists(staging_dir):
-            os.mkdir(staging_dir)
-
+        staging_dir = get_or_make_stage_dir(ds)
         stage_file = os.path.join(staging_dir, f'sleep-{ds}.json')
         with open(stage_file, 'w') as f:
             f.write(r.text)
@@ -92,3 +106,88 @@ def fetch_sleep(**kwargs):
         logging.exception(f'Error parsing JSON body for date {ds}')
     except requests.HTTPError:
         logging.exception(f'Error fetching sleep data for date {ds}')
+
+
+def fetch_weather(api_key, **kwargs):
+    """
+    Fetch daily weather data for execution date.
+
+    Weather API docs: https://www.weatherbit.io/api/weather-history-daily
+    """
+    ds = kwargs.get('ds')
+    tomorrow_ds = kwargs.get('tomorrow_ds')
+
+    try:
+        r = requests.get(
+            f'https://api.weatherbit.io/v2.0/history/daily?city=Perth&country=AU&start_date={ds}&end_date={tomorrow_ds}&key={api_key}')
+        r.raise_for_status()
+        r.json()
+
+        staging_dir = get_or_make_stage_dir(ds)
+        stage_file = os.path.join(staging_dir, f'weather-{ds}.json')
+        with open(stage_file, 'w') as f:
+            f.write(r.text)
+
+        logging.info(f'Successfully staged weather data to {stage_file}')
+    except ValueError:
+        logging.exception('Error parsing JSON from weather api')
+    except requests.HTTPError:
+        logging.exception('Error fetching weather data')
+
+
+def process_sleep(data):
+    """
+    Clean staged Fitbit sleep data. Extract main sleep log and combine sleep
+    events and sort by datetime stamp.
+    """
+    clean = {}
+
+    # extact main sleep log
+    for log in data['sleep']:
+        if log['isMainSleep']:
+            clean = log
+            break
+
+    # combine sleep events and sort by dateTime entry
+    clean['events'] = clean['levels']['data'] + clean['levels']['shortData']
+    clean['events'] = sorted(clean['events'],
+                             key=lambda x: dt.strptime(x['dateTime'], '%Y-%m-%dT%H:%M:%S.%f'))
+    clean['events'] = json.dumps(clean['events'])
+    return clean
+
+
+def transform(**kwargs):
+    """
+    Clean and transform Fitbit and weather data from staging area and load into
+    postgres table.
+    """
+    ds = kwargs.get('ds')
+    pg_hook = PostgresHook(postgres_conn_id='sleep_dw')
+    staging_dir = os.path.join(STAGE_DIR, ds)
+
+    # load data from staging area
+    with open(os.path.join(staging_dir, f'sleep-{ds}.json'), 'r') as f:
+        sleep = json.load(f)
+    with open(os.path.join(staging_dir, f'weather-{ds}.json'), 'r') as f:
+        weather = json.load(f)
+
+    # clean staged data
+    sleep = process_sleep(sleep)
+    summary = sleep['levels']['summary']
+    weather = weather['data'][0]
+
+    # load into datawarehouse
+    sleep_query = """INSERT INTO daily_sleep_data
+    (ds, efficiency, startTime, endTime, events, deep, light, rem, wake,
+    minAfterWakeup, minAsleep, minAwake, minInBed, temp, maxTemp, minTemp,
+    precip)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+    """
+    data = (ds, sleep['efficiency'], sleep['startTime'], sleep['endTime'],
+            sleep['events'], summary['deep']['minutes'], summary['light']['minutes'],
+            summary['rem']['minutes'], summary['wake']['minutes'],
+            sleep['minutesAfterWakeup'], sleep['minutesAsleep'], sleep['minutesAwake'],
+            sleep['timeInBed'], weather['temp'], weather['max_temp'], weather['min_temp'],
+            weather['precip'])
+
+    pg_hook.run(sleep_query, parameters=data)

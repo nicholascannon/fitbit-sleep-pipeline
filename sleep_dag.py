@@ -6,7 +6,7 @@ Written by Nicholas Cannon
 from airflow import DAG
 from airflow.utils.dates import days_ago
 from airflow.operators.python_operator import PythonOperator
-from datetime import timedelta
+from airflow.models import Variable
 
 import fb_sleep_etl.utils as utils
 
@@ -14,8 +14,6 @@ default_args = {
     'owner': 'airflow',
     'start_date': days_ago(1),
     'depends_on_past': False,
-    'retries': 1,
-    'retry_delay': timedelta(minutes=5),
 }
 
 dag = DAG(
@@ -25,25 +23,31 @@ dag = DAG(
     schedule_interval='@daily',
 )
 
-""" EXTRACT """
 check_token = PythonOperator(
     task_id='verify_tokens',
     python_callable=utils.verify_access_token,
     dag=dag,
 )
 get_sleep = PythonOperator(
-    task_id='get_sleep_data',
+    task_id='get_sleep',
     python_callable=utils.fetch_sleep,
     provide_context=True,
     dag=dag,
 )
-
-
-""" TRANSFORM """
-
-
-""" LOAD """
-
-
-""" DEPS """
 check_token >> get_sleep
+
+get_weather = PythonOperator(
+    task_id='get_weather',
+    python_callable=utils.fetch_weather,
+    op_args=[Variable.get('WEATHERBIT_KEY')],
+    provide_context=True,
+    dag=dag,
+)
+
+transform_task = PythonOperator(
+    task_id='transform_data',
+    python_callable=utils.transform,
+    provide_context=True,
+    dag=dag,
+)
+[get_sleep, get_weather] >> transform_task

@@ -6,6 +6,31 @@ Fitbit ETL pipeline built using Airflow and Postgres. Extracts my daily sleep in
 
 ![dag](https://i.imgur.com/7lFqZwF.png)
 
+## The Final Table
+
+```
+CREATE TABLE IF NOT EXISTS daily_sleep_data (
+    ID SERIAL PRIMARY KEY NOT NULL,
+    ds DATE NOT NULL,
+    efficiency INT,
+    startTime TIMESTAMP,
+    endTime TIMESTAMP,
+    events JSON,
+    deep INT,
+    light INT,
+    rem INT,
+    wake INT,
+    minAfterWakeup INT,
+    minAsleep INT,
+    minAwake INT,
+    minInBed INT,
+    temp DECIMAL,
+    maxTemp DECIMAL,
+    minTemp DECIMAL,
+    precip DECIMAL
+);
+```
+
 ## Raw Sleep Data
 
 ```

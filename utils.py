@@ -11,11 +11,6 @@ from datetime import datetime as dt
 from airflow.models import Variable
 from airflow.hooks.postgres_hook import PostgresHook
 
-# set up staging dir
-STAGE_DIR = os.path.join(os.getcwd(), 'staging')
-if not os.path.exists(STAGE_DIR):
-    os.mkdir(STAGE_DIR)
-
 
 def verify_access_token():
     """
@@ -66,16 +61,26 @@ def verify_access_token():
         logging.exception('Could not parse json body')
 
 
-def get_or_make_stage_dir(ds):
+def setup_staging(**kwargs):
     """
-    Utility function to return stage dir path and create it if it doesn't exist.
+    Utility function that ensures local file system is set up for storing staging
+    files. Creates staging environment in the path set up in Airflow or if
+    defaults to the current working directory.
     """
-    staging_dir = os.path.join(STAGE_DIR, ds)
+    ds = kwargs.get('ds')
+    stage_dir = Variable.get('SLEEP_STAGING', os.getcwd())
 
-    if not os.path.exists(staging_dir):
-        os.mkdir(staging_dir)
+    # make sure the parent staing directory exists
+    if not os.path.exists(stage_dir):
+        os.mkdir(stage_dir)
 
-    return staging_dir
+    # make sure the staging dir for this ds exists
+    ds_stage = os.path.join(stage_dir, ds)
+    if not os.path.exists(ds_stage):
+        os.mkdir(ds_stage)
+
+    logging.info('Staging dir: {}'.format(stage_dir))
+    logging.info('Date staging dir: {}'.format(ds_stage))
 
 
 def fetch_sleep(**kwargs):
@@ -96,7 +101,7 @@ def fetch_sleep(**kwargs):
         r.raise_for_status()
         r.json()  # validates that we actually got json data
 
-        staging_dir = get_or_make_stage_dir(ds)
+        staging_dir = os.path.join(Variable.get('SLEEP_STAGING'), ds)
         stage_file = os.path.join(staging_dir, f'sleep-{ds}.json')
         with open(stage_file, 'w') as f:
             f.write(r.text)
@@ -123,7 +128,7 @@ def fetch_weather(api_key, **kwargs):
         r.raise_for_status()
         r.json()
 
-        staging_dir = get_or_make_stage_dir(ds)
+        staging_dir = os.path.join(Variable.get('SLEEP_STAGING'), ds)
         stage_file = os.path.join(staging_dir, f'weather-{ds}.json')
         with open(stage_file, 'w') as f:
             f.write(r.text)
@@ -147,6 +152,9 @@ def process_sleep(data):
         if log['isMainSleep']:
             clean = log
             break
+    else:
+        # todo: some kind of alerting here!!
+        raise Exception('No sleep log for date!')
 
     # combine sleep events and sort by dateTime entry
     clean['events'] = clean['levels']['data'] + clean['levels']['shortData']
@@ -163,7 +171,7 @@ def transform(**kwargs):
     """
     ds = kwargs.get('ds')
     pg_hook = PostgresHook(postgres_conn_id='sleep_dw')
-    staging_dir = os.path.join(STAGE_DIR, ds)
+    staging_dir = os.path.join(Variable.get('SLEEP_STAGING'), ds)
 
     # load data from staging area
     with open(os.path.join(staging_dir, f'sleep-{ds}.json'), 'r') as f:

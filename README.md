@@ -1,12 +1,26 @@
 # Fitbit Sleep ETL Pipeline
 
-Fitbit ETL pipeline built using Airflow and Postgres. Extracts my daily sleep information from the fitbit API and weather data for the same date, cleans this data and then loads into a Postgres table. Currently data is staged in the local file system. Pipeline automatically verifies and refreshes fitbit OAuth2.0 tokens.
+Fitbit ETL pipeline built using Airflow and Postgres. Extracts my daily sleep information from the fitbit API and weather data for the same date, cleans this data and then loads into a Postgres table. Currently data is staged in the local file system. Pipeline automatically verifies and refreshes fitbit OAuth2.0 tokens. Weather data collected from [Weatherbit](https://www.weatherbit.io/api).
+
+## Installation
+
+1. Clone the repo into your airflow dag bag. Ensure that the files are cloned into a parent folder named `fb_sleep_etl/` so that the dag definition file can import the `utils.py` file correctly.
+
+2. Set up [fitbit OAuth](https://dev.fitbit.com/build/reference/web-api/oauth2/)
+
+3. Add token variables to airflow (**note: anyone with access to the airflow ui can see these!!**)
+    - Add weather bit key as `'WEATHERBIT_KEY'`
+    - Add fitbit access token as `'FITBIT_ACCESS'`
+    - Add fitbit refresh token as `'FITBIT_REFRESH'`
+    - Add base64 encoded app name and secret (joined with `:`) as `'FITBIT_APP_TOKEN'`
 
 ## DAG
 
 ![dag](https://i.imgur.com/7lFqZwF.png)
 
 ## The Final Table
+
+I've used a denormalized table as this is better for analytics.
 
 ```
 CREATE TABLE IF NOT EXISTS daily_sleep_data (

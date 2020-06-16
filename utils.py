@@ -68,7 +68,8 @@ def setup_staging(**kwargs):
     defaults to the current working directory.
     """
     ds = kwargs.get('ds')
-    stage_dir = Variable.get('SLEEP_STAGING', os.getcwd())
+    Variable.setdefault('SLEEP_STAGING', os.getcwd())
+    stage_dir = Variable.get('SLEEP_STAGING')
 
     # make sure the parent staing directory exists
     if not os.path.exists(stage_dir):

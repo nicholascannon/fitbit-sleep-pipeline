@@ -3,3 +3,4 @@ staging/
 
 .DS_Store
 .env
+gcp-service-account.json

@@ -10,6 +10,43 @@ import json
 from datetime import datetime as dt
 from airflow.models import Variable
 from airflow.hooks.postgres_hook import PostgresHook
+from airflow.contrib.hooks.gcs_hook import GoogleCloudStorageHook
+
+
+def _save_local(filename, text):
+    """
+    Helper function to save data to local staging area.
+    """
+    stage = Variable.get('LOCAL_STAGING')
+    if not os.path.exists(stage):
+        os.mkdir(stage)
+
+    path = os.path.join(stage, filename)
+    with open(path, 'w') as f:
+        f.write(text)
+    logging.info(f'Saved to {path}')
+
+
+def remove_temp(file_type):
+    """
+    Helper function to remove files from staging area by execution date. Provide
+    this function with the temp file type (sleep or weather) as the `on_success_callback`
+    for a operator.
+    """
+    # create a template for this type of temp file.
+    # e.g. /stage/path/{}-sleep.json
+    template_path = os.path.join(Variable.get('LOCAL_STAGING'),
+                                 '{}-' + file_type + '.json')
+
+    def _remove(ctx):
+        path = template_path.format(ctx.get('ds'))  # complete path with ds
+        if os.path.exists(path) and os.path.isfile(path):
+            os.remove(path)
+            logging.info(f'Removed temp file {path}')
+        else:
+            logging.warning(f'Cannot remove temp file {path}')
+
+    return _remove
 
 
 def verify_access_token():
@@ -63,8 +100,8 @@ def verify_access_token():
 
 def fetch_sleep(**kwargs):
     """
-    Fetch sleep data from Fitbit API for the given execution date and store in
-    the staging area.
+    Fetch sleep data from Fitbit API for the given execution date and save locally
+    for upload to GCS.
 
     Sleep API docs: https://dev.fitbit.com/build/reference/web-api/sleep/
     """
@@ -78,8 +115,7 @@ def fetch_sleep(**kwargs):
             headers={'Authorization': f'Bearer {access_token}'})
         r.raise_for_status()
         r.json()  # validates that we actually got json data
-
-        # TODO: send to GCS
+        _save_local(f'{ds}-sleep.json', r.text)
     except ValueError:
         logging.exception(f'Error parsing JSON body for date {ds}')
     except requests.HTTPError:
@@ -99,9 +135,8 @@ def fetch_weather(api_key, **kwargs):
         r = requests.get(
             f'https://api.weatherbit.io/v2.0/history/daily?city=Perth&country=AU&start_date={ds}&end_date={tomorrow_ds}&key={api_key}')
         r.raise_for_status()
-        r.json()
-
-        # TODO: Send to GCS
+        r.json()  # validates the json
+        _save_local(f'{ds}-weather.json', r.text)
     except ValueError:
         logging.exception('Error parsing JSON from weather api')
     except requests.HTTPError:
@@ -121,8 +156,7 @@ def process_sleep(data):
             clean = log
             break
     else:
-        # todo: some kind of alerting here!!
-        raise Exception('No sleep log for date!')
+        return clean  # no sleep logs
 
     # combine sleep events and sort by dateTime entry
     clean['events'] = clean['levels']['data'] + clean['levels']['shortData']
@@ -139,11 +173,18 @@ def transform(**kwargs):
     """
     ds = kwargs.get('ds')
     pg_hook = PostgresHook(postgres_conn_id='sleep_dw')
+    gcs_hook = GoogleCloudStorageHook(google_cloud_storage_conn_id='sleep-gcp')
 
-    # TODO: load from GCS
+    # load from GCS
+    sleep = json.loads(gcs_hook.download('sleep-staging', f'{ds}/sleep.json'))
+    weather = json.loads(gcs_hook.download('sleep-staging', f'{ds}/weather.json'))
 
     # clean staged data
     sleep = process_sleep(sleep)
+    if not sleep:
+        logging.info(f'No sleep data recorded for {ds}')
+        return
+
     summary = sleep['levels']['summary']
     weather = weather['data'][0]
 
@@ -162,3 +203,4 @@ def transform(**kwargs):
             weather['precip'])
 
     pg_hook.run(sleep_query, parameters=data)
+    logging.info('Done!!')

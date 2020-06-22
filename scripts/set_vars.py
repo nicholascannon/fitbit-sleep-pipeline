@@ -13,6 +13,7 @@ def set_vars_from_env():
     Variable.set('FITBIT_ACCESS', os.environ.get('FITBIT_ACCESS'))
     Variable.set('FITBIT_APP_TOKEN', os.environ.get('FITBIT_APP_TOKEN'))
     Variable.set('FITBIT_REFRESH', os.environ.get('FITBIT_REFRESH'))
+    Variable.set('LOCAL_STAGING', os.environ.get('LOCAL_STAGING'))
     Variable.set('WEATHERBIT_KEY', os.environ.get('WEATHERBIT_KEY'))
 
     print('Airflow variables set')

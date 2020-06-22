@@ -6,15 +6,18 @@ Written by Nicholas Cannon
 from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
 from airflow.models import Variable
+from datetime import datetime, timedelta
 
-import fb_sleep_etl.utils as utils
+import fb_sleep_etl.utils as utils  # noqa
 
 DAG_VERSION = 1.0
 
 default_args = {
     'owner': 'airflow',
-    'start_date': '2020-06-06',
+    'start_date': datetime(2020, 6, 6),
     'depends_on_past': False,
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5)
 }
 dag = DAG(
     f'fitbit_sleep_{DAG_VERSION}',

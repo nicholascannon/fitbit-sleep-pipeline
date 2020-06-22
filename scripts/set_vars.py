@@ -16,7 +16,7 @@ def set_vars_from_env():
     Variable.set('SLEEP_STAGING', os.environ.get('SLEEP_STAGING'))
     Variable.set('WEATHERBIT_KEY', os.environ.get('WEATHERBIT_KEY'))
 
-    print('Set envs')
+    print('Airflow variables set')
 
 
 if __name__ == '__main__':

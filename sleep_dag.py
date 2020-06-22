@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 import fb_sleep_etl.utils as utils  # noqa
 
-DAG_VERSION = 1.0
+DAG_VERSION = 2.0
 
 default_args = {
     'owner': 'airflow',
@@ -27,13 +27,6 @@ dag = DAG(
 )
 
 # Tasks
-setup_staging = PythonOperator(
-    task_id='setup_staging',
-    python_callable=utils.setup_staging,
-    provide_context=True,
-    dag=dag,
-)
-
 check_token = PythonOperator(
     task_id='verify_tokens',
     python_callable=utils.verify_access_token,
@@ -63,6 +56,5 @@ transform_task = PythonOperator(
 )
 
 # Deps
-setup_staging >> [check_token, get_weather]
 check_token >> get_sleep
 [get_sleep, get_weather] >> transform_task

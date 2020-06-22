@@ -61,29 +61,6 @@ def verify_access_token():
         logging.exception('Could not parse json body')
 
 
-def setup_staging(**kwargs):
-    """
-    Utility function that ensures local file system is set up for storing staging
-    files. Creates staging environment in the path set up in Airflow or if
-    defaults to the current working directory.
-    """
-    ds = kwargs.get('ds')
-    Variable.setdefault('SLEEP_STAGING', os.getcwd())
-    stage_dir = Variable.get('SLEEP_STAGING')
-
-    # make sure the parent staing directory exists
-    if not os.path.exists(stage_dir):
-        os.mkdir(stage_dir)
-
-    # make sure the staging dir for this ds exists
-    ds_stage = os.path.join(stage_dir, ds)
-    if not os.path.exists(ds_stage):
-        os.mkdir(ds_stage)
-
-    logging.info('Staging dir: {}'.format(stage_dir))
-    logging.info('Date staging dir: {}'.format(ds_stage))
-
-
 def fetch_sleep(**kwargs):
     """
     Fetch sleep data from Fitbit API for the given execution date and store in
@@ -102,12 +79,7 @@ def fetch_sleep(**kwargs):
         r.raise_for_status()
         r.json()  # validates that we actually got json data
 
-        staging_dir = os.path.join(Variable.get('SLEEP_STAGING'), ds)
-        stage_file = os.path.join(staging_dir, f'sleep-{ds}.json')
-        with open(stage_file, 'w') as f:
-            f.write(r.text)
-
-        logging.info(f'Successfully staged data to {stage_file}')
+        # TODO: send to GCS
     except ValueError:
         logging.exception(f'Error parsing JSON body for date {ds}')
     except requests.HTTPError:
@@ -129,12 +101,7 @@ def fetch_weather(api_key, **kwargs):
         r.raise_for_status()
         r.json()
 
-        staging_dir = os.path.join(Variable.get('SLEEP_STAGING'), ds)
-        stage_file = os.path.join(staging_dir, f'weather-{ds}.json')
-        with open(stage_file, 'w') as f:
-            f.write(r.text)
-
-        logging.info(f'Successfully staged weather data to {stage_file}')
+        # TODO: Send to GCS
     except ValueError:
         logging.exception('Error parsing JSON from weather api')
     except requests.HTTPError:
@@ -172,13 +139,8 @@ def transform(**kwargs):
     """
     ds = kwargs.get('ds')
     pg_hook = PostgresHook(postgres_conn_id='sleep_dw')
-    staging_dir = os.path.join(Variable.get('SLEEP_STAGING'), ds)
 
-    # load data from staging area
-    with open(os.path.join(staging_dir, f'sleep-{ds}.json'), 'r') as f:
-        sleep = json.load(f)
-    with open(os.path.join(staging_dir, f'weather-{ds}.json'), 'r') as f:
-        weather = json.load(f)
+    # TODO: load from GCS
 
     # clean staged data
     sleep = process_sleep(sleep)

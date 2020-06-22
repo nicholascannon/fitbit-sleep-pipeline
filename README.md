@@ -1,6 +1,6 @@
 # Fitbit Sleep ETL Pipeline
 
-Fitbit ETL pipeline built using Airflow and Postgres. Extracts my daily sleep information from the fitbit API and weather data for the same date, cleans this data and then loads into a Postgres table. Currently data is staged in the local file system. Pipeline automatically verifies and refreshes fitbit OAuth2.0 tokens. Weather data collected from [Weatherbit](https://www.weatherbit.io/api).
+Fitbit ETL pipeline built using Airflow, Postgres & GCP. Extracts my daily sleep information from the fitbit API and weather data for the same date then stages this data in Google Cloud Storage, pulls it processes & cleans it and then loads into Postgres. Pipeline automatically verifies and refreshes fitbit OAuth2.0 tokens. Weather data collected from [Weatherbit](https://www.weatherbit.io/api).
 
 ## Installation
 
@@ -16,13 +16,21 @@ There are some simple script files to help in the setup process.
    - Add fitbit access token as `'FITBIT_ACCESS'`
    - Add fitbit refresh token as `'FITBIT_REFRESH'`
    - Add base64 encoded app name and secret (joined with `:`) as `'FITBIT_APP_TOKEN'`
-   - Add the local file staging directory as `SLEEP_STAGING` (or leave blank to use `os.getcwd()`)
+   - Add the local file staging directory as `LOCAL_STAGING`
 
-4. Provision a Postgres data warehouse with the schema below.
+   Use the script `set_vars.py` to set the required variables from a `.env` file.
+
+4. Provision a Postgres data warehouse with the schema below (I've provided a script `start_dw.sh` that runs a postgres db locally via docker and creates the required tables).
+
+5. Add an Airflow Postgres connection with the connection id of `sleep-dw` and a Google Cloud Platform connection with the id `sleep-gcp` (Requires creating a provisioning account with GCS permissions).
 
 ## DAG
 
-![dag](https://i.imgur.com/GkFhPEx.png)
+![dag](https://i.imgur.com/OjxD3PR.png)
+
+## Task Duration
+
+![task_duration](https://i.imgur.com/0F1vtDc.png)
 
 ## The Final Table
 

@@ -2,6 +2,8 @@
 
 Fitbit ETL pipeline built using Airflow, Postgres & GCP. Extracts my daily sleep information from the fitbit API and weather data for the same date then stages this data in Google Cloud Storage, pulls it processes & cleans it and then loads into Postgres. Pipeline automatically verifies and refreshes fitbit OAuth2.0 tokens. Weather data collected from [Weatherbit](https://www.weatherbit.io/api).
 
+**Check out an alternate version of this pipeline that uses no cloud infra [here!](https://github.com/nicholascannon1/fitbit-sleep-pipeline/tree/local_staging)**
+
 ## Installation
 
 There are some simple script files to help in the setup process.

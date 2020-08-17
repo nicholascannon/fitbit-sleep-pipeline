@@ -24,7 +24,7 @@ There are some simple script files to help in the setup process.
 
 4. Provision a Postgres data warehouse with the schema below (I've provided a script `start_dw.sh` that runs a postgres db locally via docker and creates the required tables).
 
-5. Add an Airflow Postgres connection with the connection id of `sleep-dw` and a Google Cloud Platform connection with the id `sleep-gcp` (Requires creating a provisioning account with GCS permissions).
+5. Add an Airflow Postgres connection with the connection id of `sleep-dw` and a Google Cloud Platform connection with the id `sleep-gcp` (Requires creating a service account with GCS permissions).
 
 ## DAG
 

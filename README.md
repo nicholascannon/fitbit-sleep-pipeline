@@ -28,11 +28,11 @@ There are some simple script files to help in the setup process.
 
 ## DAG
 
-![dag](https://i.imgur.com/OjxD3PR.png)
+![dag](./imgs/dag.png)
 
 ## Task Duration
 
-![task_duration](https://i.imgur.com/0F1vtDc.png)
+![task_duration](./imgs/task_duration.png)
 
 ## The Final Table
 

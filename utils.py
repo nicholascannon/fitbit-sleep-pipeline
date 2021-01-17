@@ -82,7 +82,8 @@ def verify_access_token():
             refresh_token = body.get('refresh_token')
 
             if not access_token or not refresh_token:
-                raise Exception(f'Could not get new tokens from Fitbit: {body}')
+                raise Exception(
+                    f'Could not get new tokens from Fitbit: {body}')
 
             logging.info('Token refresh successful! Saving to airflow')
             Variable.set('FITBIT_ACCESS', access_token)
@@ -177,7 +178,8 @@ def transform(**kwargs):
 
     # load from GCS
     sleep = json.loads(gcs_hook.download('sleep-staging', f'{ds}/sleep.json'))
-    weather = json.loads(gcs_hook.download('sleep-staging', f'{ds}/weather.json'))
+    weather = json.loads(gcs_hook.download(
+        'sleep-staging', f'{ds}/weather.json'))
 
     # clean staged data
     sleep = process_sleep(sleep)
